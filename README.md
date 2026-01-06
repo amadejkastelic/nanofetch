@@ -2,6 +2,8 @@
 
 Lightning-fast Linux system information fetch tool written in Zig. Minimal and blazing fast.
 
+<img width="1202" height="340" alt="image" src="https://github.com/user-attachments/assets/d872ba6e-abd8-4151-8f77-f8f171c1b071" />
+
 ## Features
 
 - ⚡ **Ultra-fast** - Executes in under 1ms
