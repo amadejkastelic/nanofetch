@@ -5,6 +5,7 @@ const shell = @import("shell.zig");
 const desktop = @import("desktop.zig");
 const osinfo = @import("osinfo.zig");
 const logo = @import("logo.zig");
+const config = @import("config.zig");
 
 const winsize = extern struct {
     ws_row: u16,
@@ -29,8 +30,6 @@ fn getTerminalWidth() ?usize {
     return null;
 }
 
-const MIN_WIDTH_FOR_LOGO: usize = 70;
-
 const icons = [_][]const u8{
     "", // 0 - empty
     "\xef\x8c\x93", // 1 - NixOS logo (U+F233)
@@ -49,11 +48,20 @@ pub fn main() !void {
 
     colors.initColors();
 
-    const term_width = getTerminalWidth();
-    const show_logo = if (term_width) |w| w >= MIN_WIDTH_FOR_LOGO else false;
-    const logo_data = if (show_logo) logo.getLogo(colors.use_color) else null;
-
     const kernel_info = try system.getKernelInfo();
+    const os_name = try osinfo.getOsName(allocator);
+
+    const term_width = getTerminalWidth();
+    const term_wide_enough = if (term_width) |w| w >= config.min_width_for_logo else false;
+    const show_logo = config.show_logo and term_wide_enough;
+
+    const selected_logo: ?[]const u8 = if (std.mem.eql(u8, config.logo, "auto"))
+        os_name
+    else
+        config.logo;
+
+    const logo_data = if (show_logo) logo.getLogo(colors.use_color, selected_logo) else null;
+
     const uptime_seconds = try system.getUptime();
     const uptime_str = system.formatUptime(uptime_seconds);
     const mem_info = try system.getMemoryInfo(allocator);
@@ -64,7 +72,6 @@ pub fn main() !void {
     const disk_str = disk_str_arr[0..];
     const shell_name = try shell.getShell(allocator);
     const desktop_name = try desktop.getDesktop(allocator);
-    const os_name = try osinfo.getOsName(allocator);
 
     const username = std.posix.getenv("USER") orelse "unknown";
     const nodename = std.mem.sliceTo(&kernel_info.nodename, 0);

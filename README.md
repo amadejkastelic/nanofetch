@@ -12,7 +12,7 @@ Lightning-fast Linux system information fetch tool written in Zig. Minimal and b
 - 💾 **Resource monitoring** - Memory and disk usage with percentages
 - 🎨 **Color palette** - Displays terminal color support
 - 🔧 **Zero dependencies** - Pure Zig implementation
-- 🎯 **NixOS support** - Full NixOS logo and detection
+- 🐧 **Multi-distro** - Logos for NixOS, Arch, Ubuntu, auto-detection
 
 ## Installation
 
@@ -51,10 +51,60 @@ nanofetch
 
 ### Disable Colors
 
-Set the `NO_COLOR` environment variable:
+Set `NO_COLOR` environment variable:
 
 ```bash
 NO_COLOR=1 nanofetch
+```
+
+## Configuration
+
+Configuration is done by editing the source code directly.
+
+Edit `src/config.zig` to customize:
+
+```zig
+// Toggle logo display
+pub const show_logo = true;
+
+// Minimum terminal width to show logo
+pub const min_width_for_logo: usize = 70;
+
+// Logo selection: "auto" to detect OS, or specific name
+// Available logos: "NixOS", "Arch", "Ubuntu"
+pub const logo = "auto";
+```
+
+### Logo Customization
+
+Add new logos or modify existing ones in `src/logos.zig`:
+
+```zig
+pub const logos = [_]Logo{
+    .{
+        .name = "MyDistro",
+        .segments = [9][3]LogoSegment{
+            // ASCII art lines with color indices
+            .{ .text = "art here", .color = 0 },
+            // ... more lines
+        },
+        .color_map = &[_][]const u8{
+            "\x1b[34m", // blue
+            // ... more colors
+        },
+        .aliases = &[_][]const u8{"mydistro", "alias2"},
+    },
+};
+```
+
+For advanced customization (colors, icons), edit:
+- `src/colors.zig` - Color scheme
+- `src/main.zig` - Icons and labels
+
+After editing, rebuild:
+
+```bash
+zig build -Doptimize=ReleaseSmall
 ```
 
 ## Building
