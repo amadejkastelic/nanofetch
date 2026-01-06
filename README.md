@@ -22,7 +22,6 @@ Lightning-fast Linux system information fetch tool written in Zig. Minimal and b
 git clone https://github.com/yourusername/nanofetch.git
 cd nanofetch
 zig build -Doptimize=ReleaseSmall
-strip zig-out/bin/nanofetch
 sudo cp zig-out/bin/nanofetch /usr/local/bin/
 ```
 
@@ -38,6 +37,10 @@ Or add to your `flake.nix`:
 inputs.nanofetch.url = "github:amadejkastelic/nanofetch";
 ```
 
+And configuration:
+```nix
+environment.systemPackages [ inputs.nanofetch.packages.${pkgs.stdenv.hostPlatform.system}.nanofetch ];
+```
 ## Usage
 
 Simply run `nanofetch`:
