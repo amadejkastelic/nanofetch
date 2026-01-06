@@ -6,6 +6,31 @@ const desktop = @import("desktop.zig");
 const osinfo = @import("osinfo.zig");
 const logo = @import("logo.zig");
 
+const winsize = extern struct {
+    ws_row: u16,
+    ws_col: u16,
+    ws_xpixel: u16,
+    ws_ypixel: u16,
+};
+
+const TIOCGWINSZ = 0x5413;
+
+fn getTerminalWidth() ?usize {
+    const fd = std.posix.STDOUT_FILENO;
+    var ws: winsize = undefined;
+
+    const rc = std.os.linux.ioctl(fd, TIOCGWINSZ, @intFromPtr(&ws));
+    if (rc != -1) return ws.ws_col;
+
+    if (std.posix.getenv("COLUMNS")) |cols_str| {
+        return std.fmt.parseInt(usize, cols_str, 10) catch null;
+    }
+
+    return null;
+}
+
+const MIN_WIDTH_FOR_LOGO: usize = 70;
+
 const icons = [_][]const u8{
     "", // 0 - empty
     "\xef\x8c\x93", // 1 - NixOS logo (U+F233)
@@ -24,7 +49,9 @@ pub fn main() !void {
 
     colors.initColors();
 
-    const logo_data = logo.getLogo(colors.use_color);
+    const term_width = getTerminalWidth();
+    const show_logo = if (term_width) |w| w >= MIN_WIDTH_FOR_LOGO else false;
+    const logo_data = if (show_logo) logo.getLogo(colors.use_color) else null;
 
     const kernel_info = try system.getKernelInfo();
     const uptime_seconds = try system.getUptime();
@@ -59,12 +86,14 @@ pub fn main() !void {
     };
 
     for (0..9) |i| {
-        const segments = logo_data.lines[i];
-        for (segments) |segment| {
-            if (colors.use_color) {
-                try writer.writeAll(logo_data.color_map[segment.color]);
+        if (show_logo) {
+            const segments = logo_data.?.lines[i];
+            for (segments) |segment| {
+                if (colors.use_color) {
+                    try writer.writeAll(logo_data.?.color_map[segment.color]);
+                }
+                try writer.writeAll(segment.text);
             }
-            try writer.writeAll(segment.text);
         }
 
         if (i == 0) {
@@ -87,6 +116,8 @@ pub fn main() !void {
             try writer.writeAll("  ");
             if (colors.use_color) try writer.writeAll(colors.colorCode(.blue));
             try writer.writeAll(labels[i]);
+            // Reset color before padding/separator
+            if (colors.use_color) try writer.writeAll(colors.colorCode(.reset));
             // Align: label + padding = 13 chars, then separator
             const padding = @max(0, 13 - labels[i].len);
             for (0..padding) |_| try writer.writeAll(" ");

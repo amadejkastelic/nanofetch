@@ -1,5 +1,6 @@
 {
   lib,
+  libllvm,
   optimize ? "Debug",
   stdenv,
   revision,
@@ -10,7 +11,10 @@ stdenv.mkDerivation {
   version = revision;
   src = ./..;
 
-  nativeBuildInputs = [ zig ];
+  nativeBuildInputs = [
+    libllvm
+    zig
+  ];
 
   buildPhase = ''
     mkdir -p .cache
@@ -22,6 +26,7 @@ stdenv.mkDerivation {
   installPhase = ''
     mkdir -p $out/bin
     cp zig-out/bin/nanofetch $out/bin/
+    llvm-strip $out/bin/nanofetch
   '';
 
   meta = {
