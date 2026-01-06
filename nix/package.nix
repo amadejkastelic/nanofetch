@@ -32,6 +32,7 @@ stdenv.mkDerivation {
   meta = {
     description = "Lightning fast Linux fetch tool in Zig";
     homepage = "https://github.com/amadejkastelic/nanofetch";
+    mainProgram = "nanofetch";
     license = lib.licenses.mit;
     maintainers = [ ];
     platforms = lib.platforms.linux;
