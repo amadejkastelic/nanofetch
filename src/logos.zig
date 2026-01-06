@@ -73,47 +73,47 @@ pub const logos = [_]Logo{
         .name = "Arch",
         .segments = [_][3]LogoSegment{
             .{
-                .{ .text = "       /\\      ", .color = 0 },
-                .{ .text = "        /\\   ", .color = 0 },
-                .{ .text = "", .color = 0 },
-            },
-            .{
-                .{ .text = "      /  \\     ", .color = 0 },
-                .{ .text = "       /  \\  ", .color = 0 },
-                .{ .text = "", .color = 0 },
-            },
-            .{
-                .{ .text = "     /    \\    ", .color = 0 },
-                .{ .text = "      /    \\ ", .color = 0 },
-                .{ .text = "", .color = 0 },
-            },
-            .{
-                .{ .text = "    /      \\   ", .color = 0 },
-                .{ .text = "     /      \\", .color = 0 },
-                .{ .text = "", .color = 0 },
-            },
-            .{
-                .{ .text = "   /   ,,   \\  ", .color = 0 },
-                .{ .text = "    /   ,,   \\", .color = 0 },
-                .{ .text = "", .color = 0 },
-            },
-            .{
-                .{ .text = "  /   |  |   \\ ", .color = 0 },
-                .{ .text = "   /   |  |   \\", .color = 0 },
-                .{ .text = "", .color = 0 },
-            },
-            .{
-                .{ .text = " /_-''    ''-_\\", .color = 0 },
-                .{ .text = "/_-''    ''-_\\", .color = 0 },
-                .{ .text = "", .color = 0 },
-            },
-            .{
-                .{ .text = "", .color = 0 },
+                .{ .text = "       /\\       ", .color = 0 },
                 .{ .text = "", .color = 0 },
                 .{ .text = "", .color = 0 },
             },
             .{
+                .{ .text = "      /  \\      ", .color = 0 },
                 .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = "     /    \\     ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = "    /      \\    ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = "   /   ,,   \\   ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = "  /   |  |   \\  ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = " /_-''    ''-_\\ ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = "                ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = "                ", .color = 0 },
                 .{ .text = "", .color = 0 },
                 .{ .text = "", .color = 0 },
             },
