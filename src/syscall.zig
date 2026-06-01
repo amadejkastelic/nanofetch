@@ -172,6 +172,39 @@ fn linuxGetMemoryInfo(allocator: std.mem.Allocator, io: std.Io) !MemoryInfo {
     };
 }
 
+const vm_statistics64 = extern struct {
+    free_count: u32,
+    active_count: u32,
+    inactive_count: u32,
+    wire_count: u32,
+    zero_fill_count: u64,
+    reactivations: u64,
+    pageins: u64,
+    pageouts: u64,
+    faults: u64,
+    cow_faults: u64,
+    lookups: u64,
+    hits: u64,
+    purges: u64,
+    purgeable_count: u32,
+    speculative_count: u32,
+    decompressions: u64,
+    compressions: u64,
+    swapins: u64,
+    swapouts: u64,
+    compressor_page_count: u32,
+    throttled_count: u32,
+    external_page_count: u32,
+    internal_page_count: u32,
+    total_uncompressed_pages_in_compressor: u64,
+};
+
+extern "c" fn mach_host_self() std.c.mach_port_t;
+extern "c" fn host_statistics64(host: std.c.mach_port_t, flavor: c_int, host_info: *anyopaque, host_info_count: *c_int) c_int;
+
+const HOST_VM_INFO64_COUNT: c_int = @divExact(@sizeOf(vm_statistics64), @sizeOf(c_int));
+const HOST_VM_INFO64: c_int = 4;
+
 fn macosGetMemoryInfo() !MemoryInfo {
     var total: u64 = undefined;
     var total_size: usize = @sizeOf(u64);
@@ -183,29 +216,14 @@ fn macosGetMemoryInfo() !MemoryInfo {
     if (c_sysctlbyname("hw.pagesize", @ptrCast(&page_size), &ps_size, null, 0) != 0)
         return error.SyscallFailed;
 
-    var free_count: u32 = undefined;
-    var fc_size: usize = @sizeOf(u32);
-    if (c_sysctlbyname("vm.page_free_count", @ptrCast(&free_count), &fc_size, null, 0) != 0)
-        return error.SyscallFailed;
-
-    var active_count: u32 = undefined;
-    var ac_size: usize = @sizeOf(u32);
-    if (c_sysctlbyname("vm.page_active_count", @ptrCast(&active_count), &ac_size, null, 0) != 0)
-        return error.SyscallFailed;
-
-    var wire_count: u32 = undefined;
-    var wc_size: usize = @sizeOf(u32);
-    if (c_sysctlbyname("vm.page_wire_count", @ptrCast(&wire_count), &wc_size, null, 0) != 0)
-        return error.SyscallFailed;
-
-    var inactive_count: u32 = undefined;
-    var ic_size: usize = @sizeOf(u32);
-    if (c_sysctlbyname("vm.page_inactive_count", @ptrCast(&inactive_count), &ic_size, null, 0) != 0)
+    var vm_stats: vm_statistics64 = undefined;
+    var count: c_int = HOST_VM_INFO64_COUNT;
+    if (host_statistics64(mach_host_self(), HOST_VM_INFO64, @ptrCast(&vm_stats), &count) != 0)
         return error.SyscallFailed;
 
     const ps = @as(u64, page_size);
-    const used = (@as(u64, active_count) + @as(u64, wire_count)) * ps;
-    const available = (@as(u64, free_count) + @as(u64, inactive_count)) * ps;
+    const used = (@as(u64, vm_stats.active_count) + @as(u64, vm_stats.wire_count)) * ps;
+    const available = (@as(u64, vm_stats.free_count) + @as(u64, vm_stats.inactive_count)) * ps;
     const percentage: u8 = @trunc(@as(f64, @floatFromInt(used)) / @as(f64, @floatFromInt(total)) * 100.0);
 
     return MemoryInfo{
@@ -294,6 +312,9 @@ pub const c_gettimeofday = gettimeofday;
 
 extern "c" fn statfs(path: [*:0]const u8, buf: *anyopaque) c_int;
 pub const c_statfs = statfs;
+
+extern "c" fn ioctl(fd: c_int, request: c_ulong, ...) c_int;
+pub const c_ioctl = ioctl;
 
 test "parseUint basic" {
     const result = try parseUint(u64, "12345");

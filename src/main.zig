@@ -27,7 +27,7 @@ fn getTerminalWidth(environ_map: *std.process.Environ.Map) ?usize {
         const rc = std.os.linux.ioctl(fd, TIOCGWINSZ, @intFromPtr(&ws));
         if (rc != -1) return ws.ws_col;
     } else {
-        const rc = syscall.c_ioctl(fd, TIOCGWINSZ, @ptrCast(&ws));
+        const rc = syscall.c_ioctl(fd, TIOCGWINSZ, @as(*anyopaque, @ptrCast(&ws)));
         if (rc != -1) return ws.ws_col;
     }
 
