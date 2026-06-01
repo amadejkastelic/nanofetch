@@ -177,6 +177,60 @@ pub const logos = [_]Logo{
         },
         .aliases = &[_][]const u8{ "ubuntu", "debian" },
     },
+    .{
+        .name = "macOS",
+        .segments = [_][3]LogoSegment{
+            .{
+                .{ .text = "         .:'       ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = "      __ :'__      ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = "   .'`__`-'__``.   ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = "  :__________.-'   ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = "  :_________:      ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = "   :_________`-;   ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = "    `.__.-.__.     ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = "                   ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+            .{
+                .{ .text = "                   ", .color = 0 },
+                .{ .text = "", .color = 0 },
+                .{ .text = "", .color = 0 },
+            },
+        },
+        .color_map = &[_][]const u8{
+            "\x1b[32m", // green
+        },
+        .aliases = &[_][]const u8{ "macos", "darwin", "macos 15", "macos 14", "macos 13" },
+    },
 };
 
 pub const NixOSLogo = struct {

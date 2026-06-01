@@ -1,5 +1,5 @@
 {
-  description = "Nanofetch - Lightning fast Linux fetch tool in Zig";
+  description = "Nanofetch - Lightning fast system fetch tool in Zig";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
@@ -23,11 +23,11 @@
       ...
     }:
     builtins.foldl' nixpkgs.lib.recursiveUpdate { } (
-      builtins.map (
+      map (
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          zigPkg = zig.packages.${system}."0.15.2";
+          zigPkg = zig.packages.${system}."0.16.0";
         in
         {
           devShells.${system}.default = pkgs.callPackage ./nix/dev-shell.nix {

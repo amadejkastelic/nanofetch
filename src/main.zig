@@ -1,4 +1,6 @@
 const std = @import("std");
+const builtin = @import("builtin");
+const os_tag = builtin.os.tag;
 const colors = @import("colors.zig");
 const system = @import("system.zig");
 const shell = @import("shell.zig");
@@ -6,6 +8,7 @@ const desktop = @import("desktop.zig");
 const osinfo = @import("osinfo.zig");
 const logo = @import("logo.zig");
 const config = @import("config.zig");
+const syscall = @import("syscall.zig");
 
 const winsize = extern struct {
     ws_row: u16,
@@ -14,16 +17,21 @@ const winsize = extern struct {
     ws_ypixel: u16,
 };
 
-const TIOCGWINSZ = 0x5413;
+const TIOCGWINSZ: c_ulong = if (os_tag == .linux) 0x5413 else 0x40087468;
 
-fn getTerminalWidth() ?usize {
+fn getTerminalWidth(environ_map: *std.process.Environ.Map) ?usize {
     const fd = std.posix.STDOUT_FILENO;
     var ws: winsize = undefined;
 
-    const rc = std.os.linux.ioctl(fd, TIOCGWINSZ, @intFromPtr(&ws));
-    if (rc != -1) return ws.ws_col;
+    if (comptime os_tag == .linux) {
+        const rc = std.os.linux.ioctl(fd, TIOCGWINSZ, @intFromPtr(&ws));
+        if (rc != -1) return ws.ws_col;
+    } else {
+        const rc = syscall.c_ioctl(fd, TIOCGWINSZ, @ptrCast(&ws));
+        if (rc != -1) return ws.ws_col;
+    }
 
-    if (std.posix.getenv("COLUMNS")) |cols_str| {
+    if (environ_map.get("COLUMNS")) |cols_str| {
         return std.fmt.parseInt(usize, cols_str, 10) catch null;
     }
 
@@ -31,27 +39,29 @@ fn getTerminalWidth() ?usize {
 }
 
 const icons = [_][]const u8{
-    "", // 0 - empty
-    "\xef\x8c\x93", // 1 - NixOS logo (U+F233)
-    "\xee\x9c\x92", // 2 - kernel (U+E712)
-    "\xee\x9e\x95", // 3 - shell (U+E795)
-    "\xef\x80\x97", // 4 - uptime (U+F017)
-    "\xef\x8b\x92", // 5 - desktop (U+F2D2)
-    "\xef\x92\xbc", // 6 - memory (U+F49C)
-    "\xf3\xb1\xa5\x8e", // 7 - storage (U+E75E) - 4 bytes
-    "\xee\x88\xab", // 8 - colors (U+E22B)
+    "",
+    "\xef\x8c\x93",
+    "\xee\x9c\x92",
+    "\xee\x9e\x95",
+    "\xef\x80\x97",
+    "\xef\x8b\x92",
+    "\xef\x92\xbc",
+    "\xf3\xb1\xa5\x8e",
+    "\xee\x88\xab",
 };
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    const io = init.io;
+    const env_map = init.environ_map;
 
-    colors.initColors();
+    colors.initColors(env_map);
 
     const kernel_info = try system.getKernelInfo();
-    const os_name = try osinfo.getOsName(allocator);
+    const os_name = try osinfo.getOsName(allocator, io);
+    defer allocator.free(os_name);
 
-    const term_width = getTerminalWidth();
+    const term_width = getTerminalWidth(env_map);
     const term_wide_enough = if (term_width) |w| w >= config.min_width_for_logo else false;
     const show_logo = config.show_logo and term_wide_enough;
 
@@ -64,21 +74,21 @@ pub fn main() !void {
 
     const uptime_seconds = try system.getUptime();
     const uptime_str = system.formatUptime(uptime_seconds);
-    const mem_info = try system.getMemoryInfo(allocator);
+    const mem_info = try system.getMemoryInfo(allocator, io);
     const mem_str_arr = system.formatMemory(mem_info);
     const mem_str = mem_str_arr[0..];
-    const disk_info = try system.getDiskInfo(allocator);
+    const disk_info = try system.getDiskInfo();
     const disk_str_arr = system.formatDisk(disk_info);
     const disk_str = disk_str_arr[0..];
-    const shell_name = try shell.getShell(allocator);
-    const desktop_name = try desktop.getDesktop(allocator);
+    const shell_name = shell.getShell(env_map);
+    const desktop_name = desktop.getDesktop(env_map);
 
-    const username = std.posix.getenv("USER") orelse "unknown";
+    const username = env_map.get("USER") orelse "unknown";
     const nodename = std.mem.sliceTo(&kernel_info.nodename, 0);
 
-    var output_buffer: [16384]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&output_buffer);
-    const writer = fbs.writer();
+    var stdout_buf: [16384]u8 = undefined;
+    var file_writer = std.Io.File.stdout().writer(io, &stdout_buf);
+    var w = &file_writer.interface;
 
     const labels = [_][]const u8{
         "",
@@ -97,125 +107,121 @@ pub fn main() !void {
             const segments = logo_data.?.lines[i];
             for (segments) |segment| {
                 if (colors.use_color) {
-                    try writer.writeAll(logo_data.?.color_map[segment.color]);
+                    try w.writeAll(logo_data.?.color_map[segment.color]);
                 }
-                try writer.writeAll(segment.text);
+                try w.writeAll(segment.text);
             }
         }
 
         if (i == 0) {
             if (colors.use_color) {
-                try writer.writeAll(colors.colorCode(.blue));
+                try w.writeAll(colors.colorCode(.blue));
             }
-            try writer.writeAll(username);
-            try writer.writeAll("@");
+            try w.writeAll(username);
+            try w.writeAll("@");
             if (colors.use_color) {
-                try writer.writeAll(colors.colorCode(.red));
+                try w.writeAll(colors.colorCode(.red));
             }
-            try writer.writeAll(nodename);
-            try writer.writeAll(" ~");
-            try writer.writeAll("\n");
+            try w.writeAll(nodename);
+            try w.writeAll(" ~");
+            try w.writeAll("\n");
             continue;
         } else if (i < labels.len) {
-            // Icon + label
-            if (colors.use_color) try writer.writeAll(colors.colorCode(.cyan));
-            try writer.writeAll(icons[i]);
-            try writer.writeAll("  ");
-            if (colors.use_color) try writer.writeAll(colors.colorCode(.blue));
-            try writer.writeAll(labels[i]);
-            // Reset color before padding/separator
-            if (colors.use_color) try writer.writeAll(colors.colorCode(.reset));
-            // Align: label + padding = 13 chars, then separator
+            if (colors.use_color) try w.writeAll(colors.colorCode(.cyan));
+            try w.writeAll(icons[i]);
+            try w.writeAll("  ");
+            if (colors.use_color) try w.writeAll(colors.colorCode(.blue));
+            try w.writeAll(labels[i]);
+            if (colors.use_color) try w.writeAll(colors.colorCode(.reset));
             const padding = @max(0, 13 - labels[i].len);
-            for (0..padding) |_| try writer.writeAll(" ");
-            // Separator
-            try writer.writeAll("\xee\x98\xa1");
-            try writer.writeAll(" ");
+            for (0..padding) |_| try w.writeAll(" ");
+            try w.writeAll("\xee\x98\xa1");
+            try w.writeAll(" ");
         }
 
         switch (i) {
             1 => {
-                try writer.writeAll(os_name);
-                try writer.writeAll("\n");
+                try w.writeAll(os_name);
+                try w.writeAll("\n");
             },
             2 => {
-                const kernel_ver = kernel_info.release[0 .. std.mem.indexOfScalar(u8, &kernel_info.release, 0) orelse kernel_info.release.len];
+                const kernel_ver = kernel_info.release[0 .. std.mem.findScalar(u8, &kernel_info.release, 0) orelse kernel_info.release.len];
                 const arch = system.getKernelArch(&kernel_info);
-                try writer.writeAll(kernel_ver);
-                try writer.writeAll(" (");
-                try writer.writeAll(arch);
-                try writer.writeAll(")");
-                try writer.writeAll("\n");
+                try w.writeAll(kernel_ver);
+                try w.writeAll(" (");
+                try w.writeAll(arch);
+                try w.writeAll(")");
+                try w.writeAll("\n");
             },
             3 => {
-                try writer.writeAll(shell_name);
-                try writer.writeAll("\n");
+                try w.writeAll(shell_name);
+                try w.writeAll("\n");
             },
             4 => {
-                const uptime_end = std.mem.indexOfScalar(u8, &uptime_str, 0) orelse uptime_str.len;
-                try writer.writeAll(uptime_str[0..uptime_end]);
-                try writer.writeAll("\n");
+                const uptime_end = std.mem.findScalar(u8, &uptime_str, 0) orelse uptime_str.len;
+                try w.writeAll(uptime_str[0..uptime_end]);
+                try w.writeAll("\n");
             },
             5 => {
-                try writer.writeAll(desktop_name);
-                if (std.posix.getenv("WAYLAND_DISPLAY")) |_| {
-                    try writer.writeAll(" (Wayland)");
-                } else if (std.posix.getenv("DISPLAY")) |_| {
-                    try writer.writeAll(" (X11)");
+                try w.writeAll(desktop_name);
+                if (env_map.get("WAYLAND_DISPLAY")) |_| {
+                    try w.writeAll(" (Wayland)");
+                } else if (env_map.get("DISPLAY")) |_| {
+                    try w.writeAll(" (X11)");
                 }
-                try writer.writeAll("\n");
+                try w.writeAll("\n");
             },
             6 => {
-                const mem_end = std.mem.indexOfScalar(u8, mem_str, 0) orelse mem_str.len;
-                try writer.writeAll(mem_str[0..mem_end]);
+                const mem_end = std.mem.findScalar(u8, mem_str, 0) orelse mem_str.len;
+                try w.writeAll(mem_str[0..mem_end]);
                 if (colors.use_color) {
-                    try writer.writeAll(" (");
-                    try writer.writeAll(colors.colorCode(.cyan));
+                    try w.writeAll(" (");
+                    try w.writeAll(colors.colorCode(.cyan));
                     var mem_pct_buf: [4]u8 = undefined;
-                    try writer.writeAll(std.fmt.bufPrint(&mem_pct_buf, "{}%", .{mem_info.percentage}) catch unreachable);
-                    try writer.writeAll("\x1b[0m");
-                    try writer.writeAll(")");
+                    try w.writeAll(std.fmt.bufPrint(&mem_pct_buf, "{}%", .{mem_info.percentage}) catch unreachable);
+                    try w.writeAll("\x1b[0m");
+                    try w.writeAll(")");
                 }
-                try writer.writeAll("\n");
+                try w.writeAll("\n");
             },
             7 => {
-                const disk_end = std.mem.indexOfScalar(u8, disk_str, 0) orelse disk_str.len;
-                try writer.writeAll(disk_str[0..disk_end]);
+                const disk_end = std.mem.findScalar(u8, disk_str, 0) orelse disk_str.len;
+                try w.writeAll(disk_str[0..disk_end]);
                 if (colors.use_color) {
-                    try writer.writeAll(" (");
-                    try writer.writeAll(colors.colorCode(.cyan));
+                    try w.writeAll(" (");
+                    try w.writeAll(colors.colorCode(.cyan));
                     var disk_pct_buf: [4]u8 = undefined;
-                    try writer.writeAll(std.fmt.bufPrint(&disk_pct_buf, "{}%", .{disk_info.percentage}) catch unreachable);
-                    try writer.writeAll("\x1b[0m");
-                    try writer.writeAll(")");
+                    try w.writeAll(std.fmt.bufPrint(&disk_pct_buf, "{}%", .{disk_info.percentage}) catch unreachable);
+                    try w.writeAll("\x1b[0m");
+                    try w.writeAll(")");
                 }
-                try writer.writeAll("\n");
+                try w.writeAll("\n");
             },
             8 => {
                 if (colors.use_color) {
-                    try writer.writeAll("\x1b[34m");
-                    try writer.writeAll("\xef\x84\x91");
-                    try writer.writeAll("  ");
-                    try writer.writeAll("\x1b[36m");
-                    try writer.writeAll("\xef\x84\x91");
-                    try writer.writeAll("  ");
-                    try writer.writeAll("\x1b[32m");
-                    try writer.writeAll("\xef\x84\x91");
-                    try writer.writeAll("  ");
-                    try writer.writeAll("\x1b[33m");
-                    try writer.writeAll("\xef\x84\x91");
-                    try writer.writeAll("  ");
-                    try writer.writeAll("\x1b[31m");
-                    try writer.writeAll("\xef\x84\x91");
-                    try writer.writeAll("  ");
-                    try writer.writeAll("\x1b[35m");
-                    try writer.writeAll("\xef\x84\x91");
+                    try w.writeAll("\x1b[34m");
+                    try w.writeAll("\xef\x84\x91");
+                    try w.writeAll("  ");
+                    try w.writeAll("\x1b[36m");
+                    try w.writeAll("\xef\x84\x91");
+                    try w.writeAll("  ");
+                    try w.writeAll("\x1b[32m");
+                    try w.writeAll("\xef\x84\x91");
+                    try w.writeAll("  ");
+                    try w.writeAll("\x1b[33m");
+                    try w.writeAll("\xef\x84\x91");
+                    try w.writeAll("  ");
+                    try w.writeAll("\x1b[31m");
+                    try w.writeAll("\xef\x84\x91");
+                    try w.writeAll("  ");
+                    try w.writeAll("\x1b[35m");
+                    try w.writeAll("\xef\x84\x91");
                 }
-                try writer.writeAll("\n");
+                try w.writeAll("\n");
             },
             else => {},
         }
     }
 
-    try std.fs.File.stdout().writeAll(fbs.getWritten());
+    try file_writer.flush();
 }

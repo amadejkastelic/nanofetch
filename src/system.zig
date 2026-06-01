@@ -1,48 +1,20 @@
 const std = @import("std");
 const syscall = @import("syscall.zig");
 
-pub const KernelInfo = struct {
-    name: [65:0]u8,
-    nodename: [65:0]u8,
-    release: [65:0]u8,
-    version: [65:0]u8,
-    machine: [65:0]u8,
-};
+pub const KernelInfo = syscall.KernelInfo;
+pub const MemoryInfo = syscall.MemoryInfo;
+pub const DiskInfo = syscall.DiskInfo;
 
 pub fn getKernelArch(kernel_info: *const KernelInfo) []const u8 {
     return std.mem.sliceTo(&kernel_info.machine, 0);
 }
 
-pub const MemoryInfo = struct {
-    total: u64,
-    used: u64,
-    available: u64,
-    percentage: u8,
-};
-
-pub const DiskInfo = struct {
-    total: u64,
-    used: u64,
-    percentage: u8,
-};
-
 pub fn getKernelInfo() !KernelInfo {
-    const uname = try syscall.syscall_uname();
-
-    var kernel_info: KernelInfo = undefined;
-
-    @memcpy(kernel_info.name[0..uname.sysname.len], uname.sysname[0..]);
-    @memcpy(kernel_info.nodename[0..uname.nodename.len], uname.nodename[0..]);
-    @memcpy(kernel_info.release[0..uname.release.len], uname.release[0..]);
-    @memcpy(kernel_info.version[0..uname.version.len], uname.version[0..]);
-    @memcpy(kernel_info.machine[0..uname.machine.len], uname.machine[0..]);
-
-    return kernel_info;
+    return syscall.getKernelInfo();
 }
 
 pub fn getUptime() !u64 {
-    const info = try syscall.syscall_sysinfo();
-    return info.uptime;
+    return syscall.getUptime();
 }
 
 pub fn formatUptime(seconds: u64) [32]u8 {
@@ -91,34 +63,8 @@ pub fn formatUptime(seconds: u64) [32]u8 {
     return result;
 }
 
-pub fn getMemoryInfo(allocator: std.mem.Allocator) !MemoryInfo {
-    const meminfo_content = try std.fs.cwd().readFileAlloc(allocator, "/proc/meminfo", 65536);
-    defer allocator.free(meminfo_content);
-
-    var memtotal: u64 = 0;
-    var memavailable: u64 = 0;
-
-    var lines = std.mem.splitScalar(u8, meminfo_content, '\n');
-
-    while (lines.next()) |line| {
-        if (std.mem.startsWith(u8, line, "MemTotal:")) {
-            const value_str = line[9..];
-            memtotal = try syscall.parseUint(u64, value_str);
-        } else if (std.mem.startsWith(u8, line, "MemAvailable:")) {
-            const value_str = line[13..];
-            memavailable = try syscall.parseUint(u64, value_str);
-        }
-    }
-
-    const used = memtotal - memavailable;
-    const percentage: u8 = @intFromFloat(@as(f64, @floatFromInt(used)) / @as(f64, @floatFromInt(memtotal)) * 100.0);
-
-    return MemoryInfo{
-        .total = memtotal,
-        .used = used,
-        .available = memavailable,
-        .percentage = percentage,
-    };
+pub fn getMemoryInfo(allocator: std.mem.Allocator, io: std.Io) !MemoryInfo {
+    return syscall.getMemoryInfo(allocator, io);
 }
 
 pub fn formatMemory(mem: MemoryInfo) [32]u8 {
@@ -132,22 +78,8 @@ pub fn formatMemory(mem: MemoryInfo) [32]u8 {
     return result;
 }
 
-pub fn getDiskInfo(allocator: std.mem.Allocator) !DiskInfo {
-    _ = allocator;
-
-    const stat = try syscall.syscall_statfs("/");
-
-    const total_blocks = stat.f_blocks;
-    const avail_blocks = stat.f_bavail;
-    const used_blocks = total_blocks - avail_blocks;
-
-    const percentage: u8 = @intFromFloat(@as(f64, @floatFromInt(used_blocks)) / @as(f64, @floatFromInt(total_blocks)) * 100.0);
-
-    return DiskInfo{
-        .total = total_blocks * stat.f_bsize,
-        .used = used_blocks * stat.f_bsize,
-        .percentage = percentage,
-    };
+pub fn getDiskInfo() !DiskInfo {
+    return syscall.getDiskInfo();
 }
 
 pub fn formatDisk(disk: DiskInfo) [32]u8 {

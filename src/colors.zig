@@ -2,8 +2,8 @@ const std = @import("std");
 
 pub var use_color: bool = true;
 
-pub fn initColors() void {
-    if (std.posix.getenv("NO_COLOR")) |_| {
+pub fn initColors(environ_map: *std.process.Environ.Map) void {
+    if (environ_map.get("NO_COLOR")) |_| {
         use_color = false;
     } else {
         use_color = true;
@@ -59,12 +59,10 @@ pub fn wrap(text: []const u8, color: Color) []const u8 {
     const reset = colorCode(.reset);
 
     var buffer: [512]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buffer);
-    const writer = fbs.writer();
+    var fbs = std.Io.Writer.fixed(&buffer);
+    fbs.writeAll(code) catch return text;
+    fbs.writeAll(text) catch return text;
+    fbs.writeAll(reset) catch return text;
 
-    writer.writeAll(code) catch return text;
-    writer.writeAll(text) catch return text;
-    writer.writeAll(reset) catch return text;
-
-    return fbs.getWritten();
+    return fbs.buffer[0..fbs.end];
 }

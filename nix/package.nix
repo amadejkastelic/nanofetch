@@ -30,11 +30,11 @@ stdenv.mkDerivation {
   '';
 
   meta = {
-    description = "Lightning fast Linux fetch tool in Zig";
+    description = "Lightning fast system fetch tool in Zig";
     homepage = "https://github.com/amadejkastelic/nanofetch";
     mainProgram = "nanofetch";
     license = lib.licenses.gpl3;
     maintainers = [ ];
-    platforms = lib.platforms.linux;
+    platforms = lib.platforms.linux ++ lib.platforms.darwin;
   };
 }

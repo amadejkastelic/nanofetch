@@ -1,32 +1,48 @@
 const std = @import("std");
+const builtin = @import("builtin");
+const os_tag = builtin.os.tag;
 const syscall = @import("syscall.zig");
 
-pub fn getOsName(allocator: std.mem.Allocator) ![]const u8 {
-    const content = try syscall.readEntireFile(allocator, "/etc/os-release");
-    defer allocator.free(content);
+pub fn getOsName(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
+    if (comptime os_tag == .linux) {
+        const content = try syscall.readEntireFile(allocator, io, "/etc/os-release");
+        defer allocator.free(content);
 
-    var pretty_name: ?[]const u8 = null;
-    var name: ?[]const u8 = null;
+        var pretty_name: ?[]u8 = null;
+        var name: ?[]u8 = null;
 
-    var lines = std.mem.splitScalar(u8, content, '\n');
+        var lines = std.mem.splitScalar(u8, content, '\n');
 
-    while (lines.next()) |line| {
-        if (std.mem.startsWith(u8, line, "PRETTY_NAME=")) {
-            const value = line[12..];
-            if (value.len > 2 and value[0] == '"') {
-                pretty_name = try allocator.dupe(u8, value[1 .. value.len - 1]);
-            } else {
-                pretty_name = try allocator.dupe(u8, value);
-            }
-        } else if (std.mem.startsWith(u8, line, "NAME=")) {
-            const value = line[5..];
-            if (value.len > 2 and value[0] == '"') {
-                name = try allocator.dupe(u8, value[1 .. value.len - 1]);
-            } else {
-                name = try allocator.dupe(u8, value);
+        while (lines.next()) |line| {
+            if (std.mem.startsWith(u8, line, "PRETTY_NAME=")) {
+                const value = line[12..];
+                if (value.len > 2 and value[0] == '"') {
+                    pretty_name = try allocator.dupe(u8, value[1 .. value.len - 1]);
+                } else {
+                    pretty_name = try allocator.dupe(u8, value);
+                }
+            } else if (std.mem.startsWith(u8, line, "NAME=")) {
+                const value = line[5..];
+                if (value.len > 2 and value[0] == '"') {
+                    name = try allocator.dupe(u8, value[1 .. value.len - 1]);
+                } else {
+                    name = try allocator.dupe(u8, value);
+                }
             }
         }
-    }
 
-    return pretty_name orelse name orelse try allocator.dupe(u8, "Linux");
+        if (pretty_name) |pn| {
+            if (name) |n| allocator.free(n);
+            return pn;
+        }
+        return name orelse try allocator.dupe(u8, "Linux");
+    } else {
+        var version_buf: [256]u8 = undefined;
+        var version_size: usize = version_buf.len;
+        if (syscall.c_sysctlbyname("kern.osproductversion", @ptrCast(&version_buf), &version_size, null, 0) != 0) {
+            return allocator.dupe(u8, "macOS");
+        }
+        const version = std.mem.sliceTo(version_buf[0..version_size], 0);
+        return std.fmt.allocPrint(allocator, "macOS {s}", .{version});
+    }
 }

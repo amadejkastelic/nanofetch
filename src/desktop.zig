@@ -1,21 +1,19 @@
 const std = @import("std");
 
-pub fn getDesktop(allocator: std.mem.Allocator) ![]const u8 {
-    _ = allocator;
-
-    if (std.posix.getenv("XDG_CURRENT_DESKTOP")) |de| {
+pub fn getDesktop(environ_map: *std.process.Environ.Map) []const u8 {
+    if (environ_map.get("XDG_CURRENT_DESKTOP")) |de| {
         return de;
     }
 
-    if (std.posix.getenv("DESKTOP_SESSION")) |de| {
+    if (environ_map.get("DESKTOP_SESSION")) |de| {
         return de;
     }
 
-    if (std.posix.getenv("WAYLAND_DISPLAY")) |_| {
+    if (environ_map.get("WAYLAND_DISPLAY")) |_| {
         return "Wayland";
     }
 
-    if (std.posix.getenv("DISPLAY")) |_| {
+    if (environ_map.get("DISPLAY")) |_| {
         return "X11";
     }
 
